@@ -19,6 +19,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 import uuid
@@ -32,6 +33,11 @@ from config import (
     ROBOT_WS_URL,
     WARMUP_WAYPOINT_1, WARMUP_WAYPOINT_2, WARMUP_WAYPOINT_3,
 )
+
+# Default-off WebSocket trace: every movej / gripper send and the robot's
+# per-command ack would otherwise spam stdout (~64 lines per 16-step chunk).
+# Set TRON2_WS_VERBOSE=1 to re-enable for debugging the wire protocol.
+WS_VERBOSE = os.environ.get("TRON2_WS_VERBOSE", "0") == "1"
 
 # ── Runtime state (module globals match test.py) ─────────────────────────────
 
@@ -59,7 +65,8 @@ def send_request(title: str, data: Optional[dict] = None) -> None:
         "data": data,
     }
     msg_str = json.dumps(message)
-    print(f"\n[Send] {msg_str}")
+    if WS_VERBOSE:
+        print(f"\n[Send] {msg_str}")
     if ws_client is not None:
         ws_client.send(msg_str)
     else:
@@ -187,7 +194,8 @@ def _on_message(_ws, message: str) -> None:
         if recv_accid is not None and ACCID is None:
             ACCID = recv_accid
             _accid_event.set()
-        if title != "notify_robot_info":
+            print(f"[ws] ACCID acquired: {recv_accid}")
+        if WS_VERBOSE and title != "notify_robot_info":
             print(f"\n[Recv] {message}")
     except Exception as e:
         print(f"[Error] on_message parse failed: {e}")

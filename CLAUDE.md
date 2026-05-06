@@ -112,6 +112,7 @@ The third condition is the one that prevents "rebound" — without it, you can g
 | `TRON2_MAX_OBS_AGE` | `0.10` | Max age of joint state in next observation |
 | `TRON2_MAX_IMG_AGE` | `0.10` | Max age of camera frames in next observation |
 | `TRON2_MAX_STAMP_SPREAD` | `0.05` | Max time-skew between joint and image stamps (temporal coherence) |
+| `TRON2_WS_VERBOSE` | `0` | If `1`, print every WebSocket `[Send]`/`[Recv]` frame (debugging only) |
 | `TRON2_CKPT` | `trantor2nd/tron2_gr00t_pick_step6k` | GR00T checkpoint — HF repo id **or** local snapshot dir (`GR00T_CHECKPOINT`) |
 | `BASE_MODEL_PATH` | auto-discover, else download `nvidia/GR00T-N1.5-3B` | Base model — HF repo id or local path (`GR00T_BASE_MODEL_PATH`) |
 
