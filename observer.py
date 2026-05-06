@@ -169,8 +169,15 @@ def wait_for_fresh_observation(
     stop_event: threading.Event,
     max_obs_age: float = 0.5,
     max_img_age: float = 0.2,
+    max_stamp_spread: float = 1.0,
 ):
-    """Block until all topics are populated and both joints and images are fresh.
+    """Block until a temporally coherent observation is available.
+
+    The returned snapshot satisfies all three:
+      * joint stamp newer than ``max_obs_age``
+      * every image stamp newer than ``max_img_age``
+      * max(stamps) - min(stamps) <= ``max_stamp_spread`` so state and images
+        reflect the same instant, not "fresh state + stale image"
 
     Returns ``(names, state, frames, joint_stamp)`` on success or ``None`` if
     ``stop_event`` fired or rclpy shut down while waiting.
@@ -203,12 +210,16 @@ def wait_for_fresh_observation(
             if now - stamp > max_img_age:
                 stale = True
                 break
+        all_stamps = [joint_stamp] + [s for _, (_, s) in frames.items()]
+        spread = max(all_stamps) - min(all_stamps)
+        if spread > max_stamp_spread:
+            stale = True
         if stale:
             if now - last_heartbeat > 2.0:
                 ages = f"joint={age_joint:.2f}s"
                 for n2, (_, s2) in frames.items():
                     ages += f" {n2}={now-s2:.2f}s"
-                log.warning(f"observation too stale: {ages}")
+                log.warning(f"observation too stale: {ages} spread={spread:.3f}s")
                 last_heartbeat = now
             time.sleep(0.02)
             continue

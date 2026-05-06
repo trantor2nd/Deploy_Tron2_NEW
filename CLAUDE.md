@@ -80,6 +80,18 @@ All state/action vectors are **16-dimensional**: 14 arm joints (radians) + 2 gri
 - **Model → robot** (client chunk to server): gripper is 0–1, multiplied by 100 before `send_gripper()`
 - **`CONSUME_STEPS`** (default 30): server only executes the first N rows of the K-step chunk the model returns
 
+## Observation synchronization
+
+After each chunk the server waits `SETTLE_SECONDS` (default 250 ms) before grabbing the next observation, then `wait_for_fresh_observation` enforces three conditions on the snapshot it returns to the policy:
+
+- joint stamp newer than `MAX_OBS_AGE`
+- every camera frame newer than `MAX_IMG_AGE`
+- max stamp − min stamp ≤ `MAX_STAMP_SPREAD`
+
+The third condition is the one that prevents "rebound" — without it, you can get a fresh joint reading paired with a 100+ ms-old camera frame, and GR00T plans a chunk that walks back through the arm's recent past.
+
+`SETTLE_SECONDS` exists because `MOVE_TIME` (50 ms) only covers the robot's internal interpolation; it doesn't cover the longer chain of `robot servo → /joint_states publish → ROS callback → image decode`.
+
 ## Critical sign/ordering details
 
 - **Left-arm sign flip**: indices `[0,1,2,3,5,6,8,9,13]` in `LEFT_FLIP_IDX` are negated in `_send_step()` before sending to the robot (`request_movej` uses a different sign convention than the dataset)
@@ -96,6 +108,10 @@ All state/action vectors are **16-dimensional**: 14 arm joints (radians) + 2 gri
 | `TRON2_DEVICE` | `cuda:0` | Torch device for inference |
 | `TRON2_TASK_TEXT` | `pick_up_stones_and_place_them_into_the_container` | Language condition (server fills `Observation.task_text`) |
 | `TRON2_CONSUME_STEPS` | `30` | Rows of action chunk to execute |
+| `TRON2_SETTLE_SECONDS` | `0.25` | Pause after each chunk so robot + ROS + cameras catch up before next observation |
+| `TRON2_MAX_OBS_AGE` | `0.10` | Max age of joint state in next observation |
+| `TRON2_MAX_IMG_AGE` | `0.10` | Max age of camera frames in next observation |
+| `TRON2_MAX_STAMP_SPREAD` | `0.05` | Max time-skew between joint and image stamps (temporal coherence) |
 | `TRON2_CKPT` | `trantor2nd/tron2_gr00t_pick_step6k` | GR00T checkpoint — HF repo id **or** local snapshot dir (`GR00T_CHECKPOINT`) |
 | `BASE_MODEL_PATH` | auto-discover, else download `nvidia/GR00T-N1.5-3B` | Base model — HF repo id or local path (`GR00T_BASE_MODEL_PATH`) |
 

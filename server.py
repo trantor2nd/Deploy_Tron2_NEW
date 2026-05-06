@@ -31,9 +31,10 @@ import numpy as np
 
 import tron2_ws
 from config import (
-    SERVER_HOST, SERVER_PORT, MOVE_TIME, SEND_INTERVAL, LEFT_FLIP_IDX,
+    SERVER_HOST, SERVER_PORT, SEND_INTERVAL, LEFT_FLIP_IDX,
     WARMUP_WAYPOINT_3, JOINT_TOPIC, GRIPPER_TOPIC,
     CAM_LEFT, CAM_HIGH, CAM_RIGHT, TASK_TEXT,
+    SETTLE_SECONDS, MAX_OBS_AGE, MAX_IMG_AGE, MAX_STAMP_SPREAD,
 )
 from observer import (
     Tron2Observer, build_state_reorder, log_reorder_once,
@@ -57,7 +58,8 @@ def _send_step(cmd: np.ndarray) -> None:
 
 
 def _execute_chunk(chunk: np.ndarray, cycle: int) -> None:
-    """Send each row of chunk at SEND_INTERVAL, then wait for the arm to settle."""
+    """Send each row of chunk at SEND_INTERVAL, then settle so the next observation
+    reflects the chunk-end pose (not a mid-motion snapshot)."""
     next_tick = time.monotonic()
     for k, cmd in enumerate(chunk):
         if tron2_ws.should_exit:
@@ -73,7 +75,7 @@ def _execute_chunk(chunk: np.ndarray, cycle: int) -> None:
             f"grip=L{tron2_ws.gripper_values[0]:.1f},R{tron2_ws.gripper_values[1]:.1f}"
         )
         next_tick += SEND_INTERVAL
-    time.sleep(MOVE_TIME)
+    time.sleep(SETTLE_SECONDS)
 
 
 def _handle_client(
@@ -98,10 +100,14 @@ def _handle_client(
                 log.warning(f"unexpected message from client: {msg}")
                 continue
 
-            # Capture fresh observation.
+            # Capture fresh observation. State + every image must be young AND
+            # within MAX_STAMP_SPREAD of each other so the policy sees a
+            # temporally coherent snapshot.
             obs = wait_for_fresh_observation(
                 observer, log, stop_event,
-                max_obs_age=MOVE_TIME * 0.5,
+                max_obs_age=MAX_OBS_AGE,
+                max_img_age=MAX_IMG_AGE,
+                max_stamp_spread=MAX_STAMP_SPREAD,
             )
             if obs is None:
                 log.warning("observation unavailable, sending skip")

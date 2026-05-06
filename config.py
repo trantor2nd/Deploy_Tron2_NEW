@@ -15,6 +15,21 @@ SEND_INTERVAL = 0.05       # pause between successive movej sends, seconds
 MAX_JOINT_STEP = 0.1       # max per-send delta on any joint (safety)
 WARMUP_HOLD_SECONDS = 3.0  # hold duration at each warmup waypoint
 
+# After a chunk's last movej, wait this long so the robot physically settles
+# AND the ROS topics (joint_states, decoded camera frames) catch up. A short
+# sleep here is the main cause of "rebound": the next observation reflects the
+# arm mid-motion, so the next chunk replans from a stale state.
+SETTLE_SECONDS = float(os.environ.get("TRON2_SETTLE_SECONDS", "0.25"))
+
+# ── Observation freshness ────────────────────────────────────────────────────
+# Each (state, images) pair handed to the policy must:
+#   1. Have joint state and every image younger than MAX_OBS_AGE / MAX_IMG_AGE.
+#   2. Have all stamps within MAX_STAMP_SPREAD of each other so the model sees
+#      a temporally coherent snapshot, not "fresh state + 200 ms-old image".
+MAX_OBS_AGE = float(os.environ.get("TRON2_MAX_OBS_AGE", "0.05"))
+MAX_IMG_AGE = float(os.environ.get("TRON2_MAX_IMG_AGE", "0.05"))
+MAX_STAMP_SPREAD = float(os.environ.get("TRON2_MAX_STAMP_SPREAD", "0.05"))
+
 # ── Server-Client TCP ────────────────────────────────────────────────────────
 SERVER_HOST = os.environ.get("TRON2_SERVER_HOST", "127.0.0.1")
 SERVER_PORT = int(os.environ.get("TRON2_SERVER_PORT", "5555"))
@@ -33,7 +48,7 @@ MODEL_BACKEND = os.environ.get("TRON2_MODEL_BACKEND", "gr00t")
 
 DEVICE = os.environ.get("TRON2_DEVICE", "cuda:0")
 TASK_TEXT = os.environ.get("TRON2_TASK_TEXT", "pick_up_stones_and_place_them_into_the_container")
-CONSUME_STEPS = int(os.environ.get("TRON2_CONSUME_STEPS", "30"))
+CONSUME_STEPS = int(os.environ.get("TRON2_CONSUME_STEPS", "16"))
 
 # ── GR00T backend ────────────────────────────────────────────────────────────
 # Either an HF repo id (e.g. "trantor2nd/tron2_gr00t_pick_step6k") or a local
